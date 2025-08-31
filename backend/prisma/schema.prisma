@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  avatar    String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  builds    Build[]
+  
+  @@map("users")
+}
+
+model ComponentCategory {
+  id          String @id @default(cuid())
+  name        String @unique // CPU, GPU, RAM, etc.
+  displayName String // Processor, Graphics Card, Memory, etc.
+  description String?
+  icon        String? // Icon identifier for UI
+  sortOrder   Int     @default(0) // For ordering categories in UI
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  components Component[]
+  
+  @@map("component_categories")
+}
+
+model Component {
+  id            String  @id @default(cuid())
+  name          String  // Full product name
+  model         String  // Model number/identifier
+  brand         String  // Manufacturer
+  description   String? // Product description
+  image         String? // Product image URL
+  price         Decimal? @db.Decimal(10, 2) // Current price
+  inStock       Boolean @default(true)
+  specifications Json?   // Flexible JSON for component specs
+  
+  categoryId String
+  category   ComponentCategory @relation(fields: [categoryId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  buildComponents    BuildComponent[]
+  compatibilityRules CompatibilityRule[]
+  
+  @@map("components")
+}
+
+model Build {
+  id          String  @id @default(cuid())
+  name        String  // User-defined build name
+  description String? // Build description
+  isPublic    Boolean @default(false) // Whether build is publicly visible
+  useCase     String? // Gaming, Workstation, Budget, etc.
+  totalPrice  Decimal? @db.Decimal(10, 2) // Calculated total price
+  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  components BuildComponent[]
+  
+  @@map("builds")
+}
+
+model BuildComponent {
+  id       String @id @default(cuid())
+  quantity Int    @default(1) // Number of this component in the build
+  
+  buildId     String
+  build       Build     @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id])
+  
+  @@unique([buildId, componentId]) // Prevent duplicate components in same build
+  @@map("build_components")
+}
+
+model CompatibilityRule {
+  id          String @id @default(cuid())
+  description String // Human-readable description of the rule
+  ruleType    String // "requires", "conflicts", "recommends"
+  rules       Json   // JSON object defining the compatibility rules
+  
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("compatibility_rules")
+}
+
+model BuildGuide {
+  id          String  @id @default(cuid())
+  title       String
+  description String
+  content     String  // Markdown content of the guide
+  difficulty  String  // Beginner, Intermediate, Advanced
+  useCase     String  // Gaming, Workstation, Budget, etc.
+  thumbnail   String? // Guide thumbnail image URL
+  isPublished Boolean @default(false)
+  views       Int     @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("build_guides")
+}
