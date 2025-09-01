@@ -352,13 +352,13 @@ export default function BuildsPage() {
                 }
                 
                 return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? 'default' : 'outline'}
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </Button>
+                                     <Button
+                     key={pageNum}
+                     variant={currentPage === pageNum ? 'primary' : 'outline'}
+                     onClick={() => setCurrentPage(pageNum)}
+                   >
+                     {pageNum}
+                   </Button>
                 );
               })}
               
