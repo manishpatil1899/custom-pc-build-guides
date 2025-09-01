@@ -14,6 +14,8 @@ interface SelectedComponent {
   component: Component;
   quantity: number;
 }
+export const dynamic = "force-dynamic";
+
 
 export default function ConfiguratorPage() {
   const router = useRouter();

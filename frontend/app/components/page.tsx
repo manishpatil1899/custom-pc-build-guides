@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { componentsAPI, categoriesAPI } from '@/lib/api';
 import { formatPrice, getComponentCategoryIcon } from '@/lib/utils';
 import type { Component, ComponentCategory } from '@/lib/types';
-
+export const dynamic = "force-dynamic";
 export default function ComponentsPage() {
   const router = useRouter();
   const [components, setComponents] = useState<Component[]>([]);
