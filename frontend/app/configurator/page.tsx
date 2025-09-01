@@ -466,7 +466,7 @@ const filteredAndSortedComponents = useMemo(() => {
                                   </div>
                                   <div className="text-right ml-4">
                                     <p className="font-bold text-lg text-blue-600 mb-2">{formatPrice(component.price || 0)}</p>
-                                    <Button onClick={() => handleComponentSelect(component)} variant={isSelected ? 'outline' : 'default'} size="sm">
+                                    <Button onClick={() => handleComponentSelect(component)} variant={isSelected ? 'outline' : 'primary'} size="sm">
                                       {isSelected ? 'Selected ✓' : 'Select'}
                                     </Button>
                                   </div>

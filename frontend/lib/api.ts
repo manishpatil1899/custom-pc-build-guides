@@ -42,7 +42,7 @@ class ApiClient {
     };
 
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      (headers as any).Authorization = `Bearer ${token}`;
     }
 
     try {
@@ -114,15 +114,31 @@ class ApiClient {
   // Component endpoints
   // After:
 async getComponents(filters: ComponentFilters = {}): Promise<ApiResponse<{ components: Component[] }>> {
-  const searchParams = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      searchParams.append(key, String(value));
+  // const searchParams = new URLSearchParams();
+  // Object.entries(filters).forEach(([key, value]) => {
+  //   if (value !== undefined && value !== null && value !== '') {
+  //     searchParams.append(key, String(value));
+  //   }
+  // });
+  // const queryString = searchParams.toString();
+  // const endpoint = queryString ? `/components?${queryString}` : '/components';
+  // return this.request<{ components: Component[] }>(endpoint);
+    const searchParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, String(value));
+      }
+    });
+    // force a high limit so we get all components in one request
+    if (!searchParams.has('limit')) {
+      searchParams.append('limit', '100');
     }
-  });
-  const queryString = searchParams.toString();
-  const endpoint = queryString ? `/components?${queryString}` : '/components';
-  return this.request<{ components: Component[] }>(endpoint);
+    if (!searchParams.has('page')) {
+      searchParams.append('page', '1');
+    }
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/components?${queryString}` : '/components';
+    return this.request<{ components: Component[] }>(endpoint);
 }
 
 

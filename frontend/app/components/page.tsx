@@ -76,7 +76,7 @@ export default function ComponentsPage() {
     // Filter by category
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(component => 
-        component.category?.name === selectedCategory
+        component.category?.id === selectedCategory
       );
     }
 
@@ -194,7 +194,7 @@ export default function ComponentsPage() {
           >
             <option value="all">All Categories</option>
             {categories.map(category => (
-              <option key={category.id} value={category.name}>
+              <option key={category.id} value={category.id}>
                 {category.displayName}
               </option>
             ))}
@@ -257,7 +257,7 @@ export default function ComponentsPage() {
           Showing {Math.min(itemsPerPage, filteredAndSortedComponents.length - (currentPage - 1) * itemsPerPage)} of {filteredAndSortedComponents.length} components
           {selectedCategory !== 'all' && (
             <span className="ml-2 text-primary-600">
-              in {categories.find(c => c.name === selectedCategory)?.displayName}
+              in {categories.find(c => c.id === selectedCategory)?.displayName}
             </span>
           )}
         </p>
@@ -427,7 +427,7 @@ export default function ComponentsPage() {
                 key={category.id} 
                 className="text-center cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => {
-                  setSelectedCategory(category.name);
+                  setSelectedCategory(category.id);
                   setCurrentPage(1);
                 }}
               >
