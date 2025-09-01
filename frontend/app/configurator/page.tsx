@@ -199,19 +199,19 @@ const filteredAndSortedComponents = useMemo(() => {
   if (priceRange.min) {
     const minPrice = Number(priceRange.min);
     if (!isNaN(minPrice)) {
-      filtered = filtered.filter(comp => {
-        const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
-        return !isNaN(price) && price >= minPrice;
-      });
+              filtered = filtered.filter(comp => {
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
+          return !isNaN(price) && price >= minPrice;
+        });
     }
   }
   if (priceRange.max) {
     const maxPrice = Number(priceRange.max);
     if (!isNaN(maxPrice)) {
-      filtered = filtered.filter(comp => {
-        const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
-        return !isNaN(price) && price <= maxPrice;
-      });
+              filtered = filtered.filter(comp => {
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
+          return !isNaN(price) && price <= maxPrice;
+        });
     }
   }
 
@@ -465,7 +465,7 @@ const filteredAndSortedComponents = useMemo(() => {
                                     )}
                                   </div>
                                   <div className="text-right ml-4">
-                                    <p className="font-bold text-lg text-blue-600 mb-2">{formatPrice(component.price)}</p>
+                                    <p className="font-bold text-lg text-blue-600 mb-2">{formatPrice(component.price || 0)}</p>
                                     <Button onClick={() => handleComponentSelect(component)} variant={isSelected ? 'outline' : 'default'} size="sm">
                                       {isSelected ? 'Selected ✓' : 'Select'}
                                     </Button>
@@ -510,7 +510,7 @@ const filteredAndSortedComponents = useMemo(() => {
                         {/* UPDATED: Grid layout with tooltip for long names */}
                         <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
                           <div className="flex items-center space-x-2 min-w-0">
-                            <span className="text-lg">{getComponentCategoryIcon(sc.category.name)}</span>
+                            <span className="text-lg">{getComponentCategoryIcon(sc.category?.name || '')}</span>
                             <div className="min-w-0">
                               <p
                                 className="text-sm font-medium truncate max-w-[140px]"
@@ -518,7 +518,7 @@ const filteredAndSortedComponents = useMemo(() => {
                               >
                                 {sc.component.name}
                               </p>
-                              <p className="text-xs text-gray-500">{formatPrice(sc.component.price)}</p>
+                              <p className="text-xs text-gray-500">{formatPrice(sc.component.price || 0)}</p>
                             </div>
                           </div>
                           <button

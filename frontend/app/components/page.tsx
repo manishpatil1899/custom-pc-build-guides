@@ -66,7 +66,7 @@ export default function ComponentsPage() {
 
     // Filter by category
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(comp => comp.category.name === selectedCategory);
+      filtered = filtered.filter(comp => comp.category?.name === selectedCategory);
     }
 
     // Filter by price range
@@ -74,7 +74,7 @@ export default function ComponentsPage() {
       const minPrice = Number(priceRange.min);
       if (!isNaN(minPrice)) {
         filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
           return !isNaN(price) && price >= minPrice;
         });
       }
@@ -84,7 +84,7 @@ export default function ComponentsPage() {
       const maxPrice = Number(priceRange.max);
       if (!isNaN(maxPrice)) {
         filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
           return !isNaN(price) && price <= maxPrice;
         });
       }
@@ -253,16 +253,16 @@ export default function ComponentsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
               {paginatedComponents.map((component) => (
-                <Card key={component.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="text-2xl">
-                        {getComponentCategoryIcon(component.category.name)}
+                                  <Card key={component.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="text-2xl">
+                          {getComponentCategoryIcon(component.category?.name || '')}
+                        </div>
+                        <span className="text-xs bg-secondary-100 text-secondary-700 px-2 py-1 rounded-full">
+                          {component.category?.displayName || 'Unknown Category'}
+                        </span>
                       </div>
-                      <span className="text-xs bg-secondary-100 text-secondary-700 px-2 py-1 rounded-full">
-                        {component.category.displayName}
-                      </span>
-                    </div>
                     <h3 className="font-semibold text-secondary-900 line-clamp-2 min-h-[48px]">
                       {component.name}
                     </h3>
@@ -288,7 +288,7 @@ export default function ComponentsPage() {
                       
                       <div className="flex items-center justify-between pt-2 border-t border-secondary-100">
                         <span className="text-lg font-bold text-primary-600">
-                          {formatPrice(component.price)}
+                          {formatPrice(component.price || 0)}
                         </span>
                         <Button size="sm">
                           View Details
@@ -365,7 +365,7 @@ export default function ComponentsPage() {
       {/* Component Statistics */}
       <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6">
         {categories.map(category => {
-          const categoryCount = components.filter(c => c.category.name === category.name).length;
+          const categoryCount = components.filter(c => c.category?.name === category.name).length;
           return (
             <Card key={category.id} className="text-center">
               <CardContent className="p-4">

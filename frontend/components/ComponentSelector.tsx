@@ -245,7 +245,7 @@ export function ComponentSelector({
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className="font-semibold text-primary-600">
-                          {formatPrice(comp.price)}
+                          {formatPrice(comp.price || 0)}
                         </span>
                         <Button
                           size="sm"

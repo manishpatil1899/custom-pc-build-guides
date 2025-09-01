@@ -119,7 +119,7 @@ export function BuildSummary({
                         {comp.name}
                       </h4>
                       <p className="text-sm text-secondary-600">
-                        {category} • {formatPrice(comp.price)}
+                        {category} • {formatPrice(comp.price || 0)}
                       </p>
                     </div>
                   </div>
