@@ -108,7 +108,7 @@ export default function BuildDetailPage() {
                   {build.components.map((buildComponent) => (
                     <div key={buildComponent.id} className="flex items-center space-x-4 p-4 border border-secondary-200 rounded-lg">
                       <div className="text-2xl flex-shrink-0">
-                        {getComponentCategoryIcon(buildComponent.component.category.name)}
+                        {getComponentCategoryIcon(buildComponent.component.category?.name ?? '')               }
                       </div>
                       
                       <div className="flex-1 min-w-0">
