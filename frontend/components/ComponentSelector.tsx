@@ -67,7 +67,7 @@ export function ComponentSelector({
       const minPrice = Number(priceRange.min);
       if (!isNaN(minPrice)) {
         filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : (comp.price ?? NaN);
           return !isNaN(price) && price >= minPrice;
         });
       }
@@ -77,7 +77,7 @@ export function ComponentSelector({
       const maxPrice = Number(priceRange.max);
       if (!isNaN(maxPrice)) {
         filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price;
+          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : (comp.price ?? NaN);
           return !isNaN(price) && price <= maxPrice;
         });
       }
@@ -249,7 +249,7 @@ export function ComponentSelector({
                         </span>
                         <Button
                           size="sm"
-                          variant={isSelected ? 'outline' : 'default'}
+                          variant={isSelected ? 'outline' : 'primary'}
                           onClick={() => onComponentSelect(isSelected ? null : comp)}
                         >
                           {isSelected ? 'Deselect' : 'Select'}
