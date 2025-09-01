@@ -7,6 +7,8 @@ const { PrismaClient } = require('@prisma/client');
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
+// Tell Express to trust the proxy (needed on Render, Railway, Heroku, etc.)
+app.set("trust proxy", 1);
 
 // Import routes
 const authRoutes = require('./src/routes/auth');
