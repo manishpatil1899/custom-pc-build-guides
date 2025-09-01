@@ -1,8 +1,13 @@
-node_modules
-**/node_modules
-.next
-dist
-.output
-.env
-.env.local
-*.log
+# Node modules
+backend/node_modules/
+frontend/node_modules/
+
+# Environment files
+backend/.env
+frontend/.env.local
+
+# Prisma client
+frontend/node_modules/.prisma/
+
+# Build output
+frontend/.next/

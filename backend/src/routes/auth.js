@@ -1,23 +1,14 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
 const { body, validationResult } = require('express-validator');
+const { PrismaClient } = require('@prisma/client');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// JWT secret
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
-const JWT_EXPIRE = process.env.JWT_EXPIRE || '7d';
-
-// Helper function to generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
-};
-
-// Register new user
+// Register endpoint
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('username').isLength({ min: 3, max: 30 }).trim(),
@@ -31,7 +22,7 @@ router.post('/register', [
       return res.status(400).json({
         success: false,
         error: 'Validation Error',
-        message: 'Invalid input data',
+        message: 'Invalid registration data',
         details: errors.array(),
       });
     }
@@ -52,15 +43,12 @@ router.post('/register', [
       return res.status(409).json({
         success: false,
         error: 'User Exists',
-        message: existingUser.email === email 
-          ? 'Email already registered' 
-          : 'Username already taken',
+        message: 'User with this email or username already exists',
       });
     }
 
     // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
     const user = await prisma.user.create({
@@ -81,15 +69,16 @@ router.post('/register', [
       },
     });
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(201).json({
       success: true,
-      data: {
-        token,
-        user,
-      },
+      data: { user, token },
       message: 'User registered successfully',
     });
   } catch (error) {
@@ -102,10 +91,10 @@ router.post('/register', [
   }
 });
 
-// Login user
+// Login endpoint
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
-  body('password').exists(),
+  body('password').notEmpty(),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -113,7 +102,7 @@ router.post('/login', [
       return res.status(400).json({
         success: false,
         error: 'Validation Error',
-        message: 'Invalid input data',
+        message: 'Invalid login data',
         details: errors.array(),
       });
     }
@@ -143,18 +132,26 @@ router.post('/login', [
       });
     }
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
+    // Return user data without password
+    const userData = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      createdAt: user.createdAt,
+    };
 
     res.json({
       success: true,
-      data: {
-        token,
-        user: userWithoutPassword,
-      },
+      data: { user: userData, token },
       message: 'Login successful',
     });
   } catch (error) {
@@ -167,7 +164,7 @@ router.post('/login', [
   }
 });
 
-// Get current user profile
+// Get current user - THIS WAS MISSING!
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -188,7 +185,7 @@ router.get('/me', authMiddleware, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'User Not Found',
-        message: 'User profile not found',
+        message: 'User not found',
       });
     }
 
@@ -197,21 +194,57 @@ router.get('/me', authMiddleware, async (req, res) => {
       data: user,
     });
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('Get current user error:', error);
     res.status(500).json({
       success: false,
       error: 'Server Error',
-      message: 'Failed to get user profile',
+      message: 'Failed to get user data',
     });
   }
 });
 
-// Logout (client-side token removal)
-router.post('/logout', authMiddleware, (req, res) => {
-  res.json({
-    success: true,
-    message: 'Logout successful',
-  });
+// Logout endpoint
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    // In a real application, you might want to invalidate the token
+    // For now, we'll just return success
+    res.json({
+      success: true,
+      message: 'Logout successful',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to logout',
+    });
+  }
+});
+
+// Refresh token endpoint
+router.post('/refresh', authMiddleware, async (req, res) => {
+  try {
+    // Generate new token
+    const token = jwt.sign(
+      { userId: req.userId },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      data: { token },
+      message: 'Token refreshed successfully',
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to refresh token',
+    });
+  }
 });
 
 module.exports = router;

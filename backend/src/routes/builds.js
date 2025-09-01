@@ -37,15 +37,12 @@ router.get('/', [
 
     // Build where clause
     const where = {};
-
     if (userId) {
       where.userId = userId;
     }
-
     if (useCase) {
       where.useCase = { equals: useCase, mode: 'insensitive' };
     }
-
     if (isPublic !== undefined) {
       where.isPublic = isPublic === 'true';
     } else {
@@ -140,6 +137,77 @@ router.get('/', [
       success: false,
       error: 'Server Error',
       message: 'Failed to fetch builds',
+    });
+  }
+});
+
+// Get build by ID (NEW ENDPOINT)
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const build = await prisma.build.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        components: {
+          include: {
+            component: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    displayName: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        _count: {
+          select: { components: true },
+        },
+      },
+    });
+
+    if (!build) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Build not found',
+      });
+    }
+
+    // Check if build is public or user owns it
+    const isOwner = req.userId && req.userId === build.userId;
+    if (!build.isPublic && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'This build is private',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: build,
+    });
+  } catch (error) {
+    console.error('Get build by ID error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to fetch build',
     });
   }
 });
@@ -249,6 +317,293 @@ router.post('/', authMiddleware, [
       success: false,
       error: 'Server Error',
       message: 'Failed to create build',
+    });
+  }
+});
+
+// Update build (NEW ENDPOINT)
+router.put('/:id', authMiddleware, [
+  body('name').optional().trim().isLength({ min: 1, max: 100 }),
+  body('description').optional().trim().isLength({ max: 500 }),
+  body('useCase').optional().isString(),
+  body('isPublic').optional().isBoolean(),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Invalid build data',
+        details: errors.array(),
+      });
+    }
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Check if build exists and user owns it
+    const existingBuild = await prisma.build.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!existingBuild) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Build not found',
+      });
+    }
+
+    if (existingBuild.userId !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'You can only update your own builds',
+      });
+    }
+
+    // Update build
+    const build = await prisma.build.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        components: {
+          include: {
+            component: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: build,
+      message: 'Build updated successfully',
+    });
+  } catch (error) {
+    console.error('Update build error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to update build',
+    });
+  }
+});
+
+// Delete build (NEW ENDPOINT)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if build exists and user owns it
+    const existingBuild = await prisma.build.findUnique({
+      where: { id },
+      select: { userId: true, name: true },
+    });
+
+    if (!existingBuild) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Build not found',
+      });
+    }
+
+    if (existingBuild.userId !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'You can only delete your own builds',
+      });
+    }
+
+    // Delete build (components will be deleted automatically due to cascade)
+    await prisma.build.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: `Build "${existingBuild.name}" deleted successfully`,
+    });
+  } catch (error) {
+    console.error('Delete build error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to delete build',
+    });
+  }
+});
+
+// Get user's builds (NEW ENDPOINT)
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 20, includePrivate = false } = req.query;
+
+    const where = { userId };
+    
+    // Only show private builds if requesting user is the owner
+    if (!includePrivate || req.userId !== userId) {
+      where.isPublic = true;
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [builds, total] = await Promise.all([
+      prisma.build.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          components: {
+            include: {
+              component: {
+                include: {
+                  category: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: { components: true },
+          },
+        },
+      }),
+      prisma.build.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    res.json({
+      success: true,
+      data: builds,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error('Get user builds error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to fetch user builds',
+    });
+  }
+});
+
+// Clone build (NEW ENDPOINT)
+router.post('/:id/clone', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get original build
+    const originalBuild = await prisma.build.findUnique({
+      where: { id },
+      include: {
+        components: {
+          include: {
+            component: true,
+          },
+        },
+      },
+    });
+
+    if (!originalBuild) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Build not found',
+      });
+    }
+
+    if (!originalBuild.isPublic && originalBuild.userId !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Cannot clone private build',
+      });
+    }
+
+    // Create cloned build
+    const clonedBuild = await prisma.build.create({
+      data: {
+        name: `${originalBuild.name} (Copy)`,
+        description: originalBuild.description,
+        useCase: originalBuild.useCase,
+        isPublic: false, // Cloned builds are private by default
+        totalPrice: originalBuild.totalPrice,
+        userId: req.userId,
+        components: {
+          create: originalBuild.components.map(comp => ({
+            componentId: comp.componentId,
+            quantity: comp.quantity,
+          })),
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        components: {
+          include: {
+            component: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: clonedBuild,
+      message: 'Build cloned successfully',
+    });
+  } catch (error) {
+    console.error('Clone build error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to clone build',
     });
   }
 });

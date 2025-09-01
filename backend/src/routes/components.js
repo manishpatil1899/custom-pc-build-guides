@@ -5,7 +5,10 @@ const { query, validationResult } = require('express-validator');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all component categories
+// IMPORTANT: Order matters in Express routing!
+// More specific routes MUST come before parameterized routes
+
+// Get all component categories (MUST be before /:id route)
 router.get('/categories', async (req, res) => {
   try {
     const categories = await prisma.componentCategory.findMany({
@@ -27,6 +30,192 @@ router.get('/categories', async (req, res) => {
       success: false,
       error: 'Server Error',
       message: 'Failed to fetch categories',
+    });
+  }
+});
+
+// Search components (MUST be before /:id route)
+router.get('/search', [
+  query('q').notEmpty().isString(),
+  query('category').optional().isString(),
+  query('limit').optional().isInt({ min: 1, max: 50 }),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Invalid search parameters',
+        details: errors.array(),
+      });
+    }
+
+    const { q, category, limit = 10 } = req.query;
+
+    const where = {
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { brand: { contains: q, mode: 'insensitive' } },
+        { model: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+      ],
+    };
+
+    if (category) {
+      where.category = { name: { equals: category, mode: 'insensitive' } };
+    }
+
+    const components = await prisma.component.findMany({
+      where,
+      take: parseInt(limit),
+      include: {
+        category: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    res.json({
+      success: true,
+      data: components,
+    });
+  } catch (error) {
+    console.error('Search components error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to search components',
+    });
+  }
+});
+
+// Get components by category (MUST be before /:id route)
+router.get('/category/:categoryId', [
+  query('search').optional().isString(),
+  query('brand').optional().isString(),
+  query('priceMin').optional().isNumeric(),
+  query('priceMax').optional().isNumeric(),
+  query('sortBy').optional().isIn(['price-asc', 'price-desc', 'name-asc', 'name-desc']),
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 50 }),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Invalid query parameters',
+        details: errors.array(),
+      });
+    }
+
+    const { categoryId } = req.params;
+    const {
+      search,
+      brand,
+      priceMin,
+      priceMax,
+      sortBy = 'name-asc',
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    // Check if category exists
+    const category = await prisma.componentCategory.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Category not found',
+      });
+    }
+
+    // Build where clause
+    const where = { categoryId };
+    
+    if (brand) {
+      where.brand = { contains: brand, mode: 'insensitive' };
+    }
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { brand: { contains: search, mode: 'insensitive' } },
+        { model: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    
+    if (priceMin !== undefined) {
+      where.price = { ...where.price, gte: parseFloat(priceMin) };
+    }
+    
+    if (priceMax !== undefined) {
+      where.price = { ...where.price, lte: parseFloat(priceMax) };
+    }
+
+    // Build orderBy clause
+    let orderBy = {};
+    switch (sortBy) {
+      case 'price-asc':
+        orderBy = { price: 'asc' };
+        break;
+      case 'price-desc':
+        orderBy = { price: 'desc' };
+        break;
+      case 'name-desc':
+        orderBy = { name: 'desc' };
+        break;
+      default:
+        orderBy = { name: 'asc' };
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute queries
+    const [components, total] = await Promise.all([
+      prisma.component.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limitNum,
+        include: {
+          category: true,
+        },
+      }),
+      prisma.component.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    res.json({
+      success: true,
+      data: {
+        category,
+        components,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error('Get components by category error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to fetch components',
     });
   }
 });
@@ -79,7 +268,6 @@ router.get('/', [
           ],
         },
       });
-      
       if (categoryRecord) {
         where.categoryId = categoryRecord.id;
       }
@@ -158,14 +346,16 @@ router.get('/', [
 
     res.json({
       success: true,
-      data: components,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1,
+      data: {
+        components,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1,
+        },
       },
     });
   } catch (error) {
@@ -178,11 +368,11 @@ router.get('/', [
   }
 });
 
-// Get component by ID
+// Get component by ID (MUST come AFTER specific routes)
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
+    
     const component = await prisma.component.findUnique({
       where: { id },
       include: {
@@ -216,110 +406,6 @@ router.get('/:id', async (req, res) => {
       success: false,
       error: 'Server Error',
       message: 'Failed to fetch component',
-    });
-  }
-});
-
-// Get components by category
-router.get('/category/:categoryId', [
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('sortBy').optional().isIn(['price-asc', 'price-desc', 'name-asc', 'name-desc']),
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation Error',
-        message: 'Invalid query parameters',
-        details: errors.array(),
-      });
-    }
-
-    const { categoryId } = req.params;
-    const { page = 1, limit = 20, sortBy = 'name-asc' } = req.query;
-
-    // Check if category exists
-    const category = await prisma.componentCategory.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        error: 'Category Not Found',
-        message: 'Component category does not exist',
-      });
-    }
-
-    // Build orderBy clause
-    let orderBy = {};
-    switch (sortBy) {
-      case 'price-asc':
-        orderBy = { price: 'asc' };
-        break;
-      case 'price-desc':
-        orderBy = { price: 'desc' };
-        break;
-      case 'name-desc':
-        orderBy = { name: 'desc' };
-        break;
-      default:
-        orderBy = { name: 'asc' };
-    }
-
-    // Calculate pagination
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    const where = { categoryId };
-
-    // Execute queries
-    const [components, total] = await Promise.all([
-      prisma.component.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limitNum,
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-              displayName: true,
-              icon: true,
-            },
-          },
-        },
-      }),
-      prisma.component.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limitNum);
-
-    res.json({
-      success: true,
-      data: {
-        category,
-        components,
-      },
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1,
-      },
-    });
-  } catch (error) {
-    console.error('Get category components error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server Error',
-      message: 'Failed to fetch category components',
     });
   }
 });

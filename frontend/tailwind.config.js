@@ -1,4 +1,5 @@
 /** @type {import('tailwindcss').Config} */
+
 module.exports = {
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -34,6 +35,10 @@ module.exports = {
           900: '#111827',
           950: '#030712',
         },
+        // Custom colors to fix the CSS errors
+        border: '#E5E7EB',      // matched with Tailwind's gray-200 for borders
+        background: '#F9FAFB',  // matched with Tailwind's gray-50 for background
+        foreground: '#111827',  // matched with Tailwind's gray-900 for text
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

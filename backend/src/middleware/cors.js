@@ -1,48 +1,67 @@
 const cors = require('cors');
 
-const createCorsMiddleware = () => {
-  const NODE_ENV = process.env.NODE_ENV || 'development';
-  const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests from these origins
+    const allowedOrigins = [
+      'http://localhost:3000', // Next.js dev server
+      'http://localhost:3001', // Alternative dev port
+      'https://localhost:3000', // HTTPS dev
+      'https://localhost:3001', // HTTPS dev alternative
+    ];
 
-  const corsOptions = {
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      if (NODE_ENV === 'development') {
-        // In development, allow localhost and 127.0.0.1 on any port
-        if (
-          origin.includes('localhost') || 
-          origin.includes('127.0.0.1') ||
-          origin === FRONTEND_URL
-        ) {
-          return callback(null, true);
-        }
-      } else {
-        // In production, only allow specified frontend URL
-        if (origin === FRONTEND_URL) {
-          return callback(null, true);
-        }
+    // Allow requests from Vercel preview deployments and production
+    if (process.env.NODE_ENV === 'production') {
+      allowedOrigins.push(
+        /^https:\/\/.*\.vercel\.app$/, // Vercel deployments
+        /^https:\/\/.*\.netlify\.app$/, // Netlify deployments  
+        /^https:\/\/.*\.render\.com$/, // Render deployments
+      );
+
+      // Add your production frontend URL if you have a custom domain
+      if (process.env.FRONTEND_URL) {
+        allowedOrigins.push(process.env.FRONTEND_URL);
       }
+    }
 
-      callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
-    exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
-    maxAge: 86400, // 24 hours
-  };
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
 
-  return cors(corsOptions);
+    // Check if origin is allowed
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      }
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS: Blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS policy'));
+    }
+  },
+  credentials: true, // Allow cookies and credentials
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'X-HTTP-Method-Override',
+  ],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  maxAge: 86400, // 24 hours
 };
 
-module.exports = {
-  createCorsMiddleware,
-};
+// Create and export the CORS middleware
+const corsMiddleware = cors(corsOptions);
+
+module.exports = corsMiddleware;

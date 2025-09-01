@@ -8,19 +8,37 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format price to currency string
+ * Format price to currency string with proper null/undefined handling
  */
-export function formatPrice(price?: number | null): string {
-  if (price === null || price === undefined) {
+export function formatPrice(price?: number | string | null): string {
+  if (price === null || price === undefined || price === '') {
     return 'Price not available';
   }
-  
+
+  // Convert to number if it's a string
+  const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+  // Check if conversion resulted in NaN
+  if (isNaN(numPrice)) {
+    return 'Price not available';
+  }
+
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(price);
+  }).format(numPrice);
+}
+
+/**
+ * Safely calculate total price from components array
+ */
+export function calculateTotalPrice(components: Array<{ price?: number | string | null }>): number {
+  return components.reduce((total, component) => {
+    if (!component?.price) return total;
+    const price = typeof component.price === 'string' ? parseFloat(component.price) : component.price;
+    return total + (isNaN(price) ? 0 : price);
+  }, 0);
 }
 
 /**
@@ -28,13 +46,11 @@ export function formatPrice(price?: number | null): string {
  */
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   };
-  
   return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(dateObj);
 }
 
@@ -45,9 +61,8 @@ export function formatRelativeTime(date: string | Date): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
   const diffInMs = now.getTime() - dateObj.getTime();
-  
   const rtf = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
-  
+
   const intervals = [
     { unit: 'year', ms: 31536000000 },
     { unit: 'month', ms: 2628000000 },
@@ -57,14 +72,14 @@ export function formatRelativeTime(date: string | Date): string {
     { unit: 'minute', ms: 60000 },
     { unit: 'second', ms: 1000 },
   ] as const;
-  
+
   for (const { unit, ms } of intervals) {
     if (Math.abs(diffInMs) >= ms) {
       const value = Math.round(diffInMs / ms);
       return rtf.format(-value, unit);
     }
   }
-  
+
   return 'Just now';
 }
 
@@ -96,47 +111,24 @@ export function truncateText(text: string, length: number, suffix = '...'): stri
 }
 
 /**
- * Generate random ID
- */
-export function generateId(length = 8): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-/**
- * Debounce function
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: NodeJS.Timeout;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
-  };
-}
-
-/**
  * Get component category icon
  */
 export function getComponentCategoryIcon(categoryName: string): string {
   const icons: Record<string, string> = {
     CPU: '🧠',
+    Processor: '🧠',
     Motherboard: '🔌',
     RAM: '💾',
+    Memory: '💾',
     GPU: '🎮',
+    'Graphics Card': '🎮',
     Storage: '💿',
     PSU: '⚡',
+    'Power Supply': '⚡',
     Case: '📦',
+    'PC Case': '📦',
     Cooling: '❄️',
   };
-  
   return icons[categoryName] || '🔧';
 }
 
@@ -154,7 +146,6 @@ export function getUseCaseIcon(useCase: string): string {
     General: '💻',
     Other: '🔧',
   };
-  
   return icons[useCase] || '💻';
 }
 
@@ -167,7 +158,6 @@ export function getDifficultyColor(difficulty: string): string {
     Intermediate: 'bg-yellow-100 text-yellow-800',
     Advanced: 'bg-red-100 text-red-800',
   };
-  
   return colors[difficulty] || 'bg-gray-100 text-gray-800';
 }
 
@@ -182,9 +172,9 @@ export function calculateBuildStats(components: any[]): {
 } {
   const requiredCategories = ['CPU', 'Motherboard', 'RAM', 'Storage', 'PSU', 'Case'];
   const presentCategories = components.map(c => c.category?.name || c.categoryName).filter(Boolean);
-  
+
   return {
-    totalPrice: components.reduce((sum, c) => sum + (c.price || 0), 0),
+    totalPrice: calculateTotalPrice(components),
     componentCount: components.length,
     categories: [...new Set(presentCategories)],
     missingCategories: requiredCategories.filter(cat => !presentCategories.includes(cat)),
@@ -207,23 +197,23 @@ export function validatePassword(password: string): {
   errors: string[];
 } {
   const errors: string[] = [];
-  
+
   if (password.length < 8) {
     errors.push('Password must be at least 8 characters long');
   }
-  
+
   if (!/[a-z]/.test(password)) {
     errors.push('Password must contain at least one lowercase letter');
   }
-  
+
   if (!/[A-Z]/.test(password)) {
     errors.push('Password must contain at least one uppercase letter');
   }
-  
+
   if (!/\d/.test(password)) {
     errors.push('Password must contain at least one number');
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -244,24 +234,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
- * Download data as JSON file
- */
-export function downloadJSON(data: any, filename: string): void {
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename.endsWith('.json') ? filename : `${filename}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  URL.revokeObjectURL(url);
-}
-
-/**
  * Create a delay/sleep function
  */
 export function sleep(ms: number): Promise<void> {
@@ -273,13 +245,13 @@ export function sleep(ms: number): Promise<void> {
  */
 export function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
@@ -292,17 +264,16 @@ export function isMobile(): boolean {
 }
 
 /**
- * Scroll to element
+ * Simple debounce function without cleanup issues
  */
-export function scrollToElement(elementId: string, offset = 0): void {
-  const element = document.getElementById(elementId);
-  if (element) {
-    const elementPosition = element.getBoundingClientRect().top;
-    const offsetPosition = elementPosition + window.pageYOffset - offset;
-    
-    window.scrollTo({
-      top: offsetPosition,
-      behavior: 'smooth'
-    });
-  }
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
 }
