@@ -116,7 +116,7 @@ export default function BuildDetailPage() {
                           {buildComponent.component.name}
                         </h3>
                         <p className="text-sm text-secondary-600">
-                          {buildComponent.component.category.displayName} • {buildComponent.component.brand}
+                          {buildComponent.component.category?.displayName ?? 'Unknown Category'} • {buildComponent.component.brand}
                         </p>
                         {buildComponent.quantity > 1 && (
                           <p className="text-sm text-secondary-500">
