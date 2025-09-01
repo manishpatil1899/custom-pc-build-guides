@@ -68,7 +68,7 @@ export default function BuildsPage() {
       const minPrice = Number(priceRange.min);
       if (!isNaN(minPrice)) {
         filtered = filtered.filter(build => {
-          const price = typeof build.totalPrice === 'string' ? parseFloat(build.totalPrice) : build.totalPrice;
+          const price = typeof build.totalPrice === 'string' ? parseFloat(build.totalPrice) : build.totalPrice || 0;
           return !isNaN(price) && price >= minPrice;
         });
       }
@@ -78,7 +78,7 @@ export default function BuildsPage() {
       const maxPrice = Number(priceRange.max);
       if (!isNaN(maxPrice)) {
         filtered = filtered.filter(build => {
-          const price = typeof build.totalPrice === 'string' ? parseFloat(build.totalPrice) : build.totalPrice;
+          const price = typeof build.totalPrice === 'string' ? parseFloat(build.totalPrice) : build.totalPrice || 0;
           return !isNaN(price) && price <= maxPrice;
         });
       }

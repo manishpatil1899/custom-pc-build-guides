@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { buildsAPI } from '@/lib/api';
 import { formatPrice, formatDate, getUseCaseIcon, getComponentCategoryIcon } from '@/lib/utils';
-import type { Build } from '@/lib/types';
+import type { Build, BuildComponent } from '@/lib/types';
 
 export default function BuildDetailPage() {
   const params = useParams();
@@ -105,10 +105,10 @@ export default function BuildDetailPage() {
             <CardContent>
               {build.components && build.components.length > 0 ? (
                 <div className="space-y-4">
-                  {build.components.map((buildComponent) => (
+                  {build.components.map((buildComponent: BuildComponent) => (
                     <div key={buildComponent.id} className="flex items-center space-x-4 p-4 border border-secondary-200 rounded-lg">
                       <div className="text-2xl flex-shrink-0">
-                        {getComponentCategoryIcon(buildComponent.component.category?.name ?? '')               }
+                        {getComponentCategoryIcon(buildComponent.component.category?.name ?? '')}
                       </div>
                       
                       <div className="flex-1 min-w-0">
