@@ -15,6 +15,8 @@ interface SelectedComponent {
   quantity: number;
 }
 export const dynamic = "force-dynamic";
+export const revalidate = 60; // fetch new data every 60s
+
 
 
 export default function ConfiguratorPage() {

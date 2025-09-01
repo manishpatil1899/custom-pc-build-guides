@@ -8,6 +8,8 @@ import { componentsAPI, categoriesAPI } from '@/lib/api';
 import { formatPrice, getComponentCategoryIcon } from '@/lib/utils';
 import type { Component, ComponentCategory } from '@/lib/types';
 export const dynamic = "force-dynamic";
+export const revalidate = 60; // fetch new data every 60s
+
 export default function ComponentsPage() {
   const router = useRouter();
   const [components, setComponents] = useState<Component[]>([]);
