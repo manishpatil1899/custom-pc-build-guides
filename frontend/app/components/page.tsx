@@ -1,45 +1,43 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { categoriesAPI, componentsAPI } from '@/lib/api';
+import { componentsAPI, categoriesAPI } from '@/lib/api';
 import { formatPrice, getComponentCategoryIcon } from '@/lib/utils';
 import type { Component, ComponentCategory } from '@/lib/types';
 
 export default function ComponentsPage() {
+  const router = useRouter();
   const [components, setComponents] = useState<Component[]>([]);
   const [categories, setCategories] = useState<ComponentCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('name-asc');
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Fetch categories and all components
+  // Fetch categories and components
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch categories
-        const categoriesResponse = await categoriesAPI.getAll();
+        const [categoriesResponse, componentsResponse] = await Promise.all([
+          categoriesAPI.getAll(),
+          componentsAPI.getAll()
+        ]);
+
         if (categoriesResponse.success && categoriesResponse.data) {
           setCategories(categoriesResponse.data);
         }
 
-        // Fetch all components from all categories
-        const allComponents: Component[] = [];
-        if (categoriesResponse.success && categoriesResponse.data) {
-          for (const category of categoriesResponse.data) {
-            const componentsResponse = await componentsAPI.getByCategory(category.id);
-            if (componentsResponse.success && componentsResponse.data) {
-              allComponents.push(...componentsResponse.data.components);
-            }
-          }
+        if (componentsResponse.success && componentsResponse.data) {
+          setComponents(componentsResponse.data.components || []);
         }
-        setComponents(allComponents);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -50,6 +48,15 @@ export default function ComponentsPage() {
     fetchData();
   }, []);
 
+  // Get unique brands
+  const brands = useMemo(() => {
+    const validBrands = components
+      .map(c => c.brand)
+      .filter((brand): brand is string => Boolean(brand));
+    const unique = [...new Set(validBrands)];
+    return ['all', ...unique.sort()];
+  }, [components]);
+
   // Filter and sort components
   const filteredAndSortedComponents = useMemo(() => {
     let filtered = [...components];
@@ -57,24 +64,34 @@ export default function ComponentsPage() {
     // Filter by search term
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase().trim();
-      filtered = filtered.filter(comp => 
-        comp.name.toLowerCase().includes(searchLower) ||
-        comp.brand.toLowerCase().includes(searchLower) ||
-        comp.model.toLowerCase().includes(searchLower)
+      filtered = filtered.filter(component => 
+        component.name.toLowerCase().includes(searchLower) ||
+        component.brand?.toLowerCase().includes(searchLower) ||
+        component.description?.toLowerCase().includes(searchLower) ||
+        component.model?.toLowerCase().includes(searchLower)
       );
     }
 
     // Filter by category
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(comp => comp.category?.name === selectedCategory);
+      filtered = filtered.filter(component => 
+        component.category?.name === selectedCategory
+      );
+    }
+
+    // Filter by brand
+    if (selectedBrand !== 'all') {
+      filtered = filtered.filter(component => 
+        component.brand === selectedBrand
+      );
     }
 
     // Filter by price range
     if (priceRange.min) {
       const minPrice = Number(priceRange.min);
       if (!isNaN(minPrice)) {
-        filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
+        filtered = filtered.filter(component => {
+          const price = typeof component.price === 'string' ? parseFloat(component.price) : (component.price ?? 0);
           return !isNaN(price) && price >= minPrice;
         });
       }
@@ -83,8 +100,8 @@ export default function ComponentsPage() {
     if (priceRange.max) {
       const maxPrice = Number(priceRange.max);
       if (!isNaN(maxPrice)) {
-        filtered = filtered.filter(comp => {
-          const price = typeof comp.price === 'string' ? parseFloat(comp.price) : comp.price || 0;
+        filtered = filtered.filter(component => {
+          const price = typeof component.price === 'string' ? parseFloat(component.price) : (component.price ?? 0);
           return !isNaN(price) && price <= maxPrice;
         });
       }
@@ -98,13 +115,13 @@ export default function ComponentsPage() {
         case 'name-desc':
           return b.name.localeCompare(a.name);
         case 'price-asc': {
-          const priceA = typeof a.price === 'string' ? parseFloat(a.price) : a.price || 0;
-          const priceB = typeof b.price === 'string' ? parseFloat(b.price) : b.price || 0;
+          const priceA = typeof a.price === 'string' ? parseFloat(a.price) : (a.price ?? 0);
+          const priceB = typeof b.price === 'string' ? parseFloat(b.price) : (b.price ?? 0);
           return priceA - priceB;
         }
         case 'price-desc': {
-          const priceA = typeof a.price === 'string' ? parseFloat(a.price) : a.price || 0;
-          const priceB = typeof b.price === 'string' ? parseFloat(b.price) : b.price || 0;
+          const priceA = typeof a.price === 'string' ? parseFloat(a.price) : (a.price ?? 0);
+          const priceB = typeof b.price === 'string' ? parseFloat(b.price) : (b.price ?? 0);
           return priceB - priceA;
         }
         default:
@@ -113,7 +130,7 @@ export default function ComponentsPage() {
     });
 
     return filtered;
-  }, [components, searchTerm, selectedCategory, sortBy, priceRange]);
+  }, [components, searchTerm, selectedCategory, selectedBrand, sortBy, priceRange]);
 
   // Paginate components
   const paginatedComponents = useMemo(() => {
@@ -126,11 +143,12 @@ export default function ComponentsPage() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCategory, sortBy, priceRange]);
+  }, [searchTerm, selectedCategory, selectedBrand, sortBy, priceRange]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedCategory('all');
+    setSelectedBrand('all');
     setSortBy('name-asc');
     setPriceRange({ min: '', max: '' });
     setCurrentPage(1);
@@ -144,6 +162,16 @@ export default function ComponentsPage() {
         <p className="text-lg text-secondary-600 max-w-3xl">
           Browse our comprehensive database of PC components. Find the perfect parts for your build with detailed specifications and competitive pricing.
         </p>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mb-8 flex flex-wrap gap-4">
+        <Button onClick={() => router.push('/configurator')}>
+          Build Your PC
+        </Button>
+        <Button variant="outline" onClick={() => router.push('/builds')}>
+          View Community Builds
+        </Button>
       </div>
 
       {/* Filters */}
@@ -167,6 +195,19 @@ export default function ComponentsPage() {
             {categories.map(category => (
               <option key={category.id} value={category.name}>
                 {category.displayName}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedBrand}
+            onChange={(e) => setSelectedBrand(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white min-w-[130px]"
+          >
+            <option value="all">All Brands</option>
+            {brands.slice(1).map(brand => (
+              <option key={brand} value={brand}>
+                {brand}
               </option>
             ))}
           </select>
@@ -201,7 +242,7 @@ export default function ComponentsPage() {
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
 
-          {(searchTerm || selectedCategory !== 'all' || sortBy !== 'name-asc' || priceRange.min || priceRange.max) && (
+          {(searchTerm || selectedCategory !== 'all' || selectedBrand !== 'all' || sortBy !== 'name-asc' || priceRange.min || priceRange.max) && (
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
             </Button>
@@ -239,48 +280,54 @@ export default function ComponentsPage() {
         <>
           {paginatedComponents.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">🔍</div>
+              <div className="text-6xl mb-4">🔧</div>
               <h3 className="text-xl font-semibold text-secondary-900 mb-2">
                 No components found
               </h3>
               <p className="text-secondary-600 mb-4">
                 Try adjusting your filters or search terms to find components.
               </p>
-              <Button onClick={clearFilters}>
-                Clear All Filters
+              <Button variant="outline" onClick={clearFilters}>
+                Clear Filters
               </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
               {paginatedComponents.map((component) => (
-                                  <Card key={component.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="text-2xl">
-                          {getComponentCategoryIcon(component.category?.name || '')}
-                        </div>
-                        <span className="text-xs bg-secondary-100 text-secondary-700 px-2 py-1 rounded-full">
-                          {component.category?.displayName || 'Unknown Category'}
-                        </span>
+                <Card key={component.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="text-2xl">
+                        {getComponentCategoryIcon(component.category?.name ?? 'component')}
                       </div>
-                    <h3 className="font-semibold text-secondary-900 line-clamp-2 min-h-[48px]">
+                      <span className="text-xs bg-secondary-100 text-secondary-700 px-2 py-1 rounded-full">
+                        {component.category?.displayName ?? 'Component'}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-secondary-900 line-clamp-2 min-h-[2.5rem]">
                       {component.name}
                     </h3>
-                    <p className="text-sm text-secondary-600">{component.brand}</p>
+                    <p className="text-sm text-secondary-600">
+                      {component.brand}
+                    </p>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <p className="text-sm text-secondary-600 line-clamp-2">
+                      <p className="text-sm text-secondary-600 line-clamp-2 min-h-[2.5rem]">
                         {component.description}
                       </p>
                       
                       {/* Key Specifications */}
                       {component.specifications && (
                         <div className="text-xs text-secondary-500 space-y-1">
-                          {Object.entries(component.specifications).slice(0, 2).map(([key, value]) => (
+                          {Object.entries(component.specifications).slice(0, 3).map(([key, value]) => (
                             <div key={key} className="flex justify-between">
-                              <span className="capitalize">{key}:</span>
-                              <span>{String(value)}</span>
+                              <span className="font-medium capitalize truncate">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}:
+                              </span>
+                              <span className="text-right ml-2 truncate">
+                                {String(value)}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -288,11 +335,16 @@ export default function ComponentsPage() {
                       
                       <div className="flex items-center justify-between pt-2 border-t border-secondary-100">
                         <span className="text-lg font-bold text-primary-600">
-                          {formatPrice(component.price || 0)}
+                          {formatPrice(component.price)}
                         </span>
-                        <Button size="sm">
-                          View Details
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline">
+                            View Details
+                          </Button>
+                          <Button size="sm">
+                            Add to Build
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -319,7 +371,7 @@ export default function ComponentsPage() {
                 Previous
               </Button>
               
-              {/* Page Numbers */}
+              {/* Page Numbers - FIXED: Changed 'default' to 'primary' */}
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum;
                 if (totalPages <= 5) {
@@ -335,7 +387,7 @@ export default function ComponentsPage() {
                 return (
                   <Button
                     key={pageNum}
-                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                    variant={currentPage === pageNum ? 'primary' : 'outline'}
                     onClick={() => setCurrentPage(pageNum)}
                   >
                     {pageNum}
@@ -362,23 +414,40 @@ export default function ComponentsPage() {
         </>
       )}
 
-      {/* Component Statistics */}
-      <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6">
-        {categories.map(category => {
-          const categoryCount = components.filter(c => c.category?.name === category.name).length;
-          return (
-            <Card key={category.id} className="text-center">
-              <CardContent className="p-4">
-                <div className="text-2xl mb-2">
-                  {getComponentCategoryIcon(category.name)}
-                </div>
-                <h4 className="font-semibold text-secondary-900">{category.displayName}</h4>
-                <p className="text-2xl font-bold text-primary-600 mt-1">{categoryCount}</p>
-                <p className="text-xs text-secondary-500">Components</p>
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Category Statistics */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold text-secondary-900 mb-6">Component Categories</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {categories.map((category) => {
+            const categoryCount = components.filter(c => c.category?.id === category.id).length;
+            
+            return (
+              <Card 
+                key={category.id} 
+                className="text-center cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => {
+                  setSelectedCategory(category.name);
+                  setCurrentPage(1);
+                }}
+              >
+                <CardContent className="p-4">
+                  <div className="text-3xl mb-2">
+                    {getComponentCategoryIcon(category.name)}
+                  </div>
+                  <h4 className="font-semibold text-secondary-900 mb-1 text-sm">
+                    {category.displayName}
+                  </h4>
+                  <p className="text-lg font-bold text-primary-600">
+                    {categoryCount}
+                  </p>
+                  <p className="text-xs text-secondary-500">
+                    Components
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
