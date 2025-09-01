@@ -112,20 +112,19 @@ class ApiClient {
   }
 
   // Component endpoints
-  async getComponents(filters: ComponentFilters = {}): Promise<ApiResponse<Component[]>> {
-    const searchParams = new URLSearchParams();
-    
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        searchParams.append(key, String(value));
-      }
-    });
+  // After:
+async getComponents(filters: ComponentFilters = {}): Promise<ApiResponse<{ components: Component[] }>> {
+  const searchParams = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, String(value));
+    }
+  });
+  const queryString = searchParams.toString();
+  const endpoint = queryString ? `/components?${queryString}` : '/components';
+  return this.request<{ components: Component[] }>(endpoint);
+}
 
-    const queryString = searchParams.toString();
-    const endpoint = queryString ? `/components?${queryString}` : '/components';
-    
-    return this.request<Component[]>(endpoint);
-  }
 
   async getComponent(id: string): Promise<ApiResponse<Component>> {
     return this.request<Component>(`/components/${id}`);

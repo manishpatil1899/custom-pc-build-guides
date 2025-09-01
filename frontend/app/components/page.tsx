@@ -36,7 +36,8 @@ export default function ComponentsPage() {
         }
 
         if (componentsResponse.success && componentsResponse.data) {
-          setComponents(componentsResponse.data.components || []);
+          // Now TS knows data.components exists
+          setComponents(componentsResponse.data.components);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
